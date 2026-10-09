@@ -1,0 +1,457 @@
+/**
+ * ECOPRINTEC - Main Interactive JavaScript Module
+ */
+document.addEventListener("DOMContentLoaded", () => {
+  // 1. Mobile Menu Drawer Navigation
+  const menuToggle = document.querySelector(".menu-toggle");
+  const mobileOverlay = document.querySelector(".mobile-overlay");
+  const nav = document.querySelector(".nav");
+  const body = document.body;
+
+  if (menuToggle && mobileOverlay && nav) {
+    const dropdowns = document.querySelectorAll(".nav .dropdown");
+
+    function setMenuState(isOpen) {
+      body.classList.toggle("menu-open", isOpen);
+      menuToggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      menuToggle.setAttribute("aria-label", isOpen ? "Close menu" : "Open menu");
+      mobileOverlay.setAttribute("aria-hidden", isOpen ? "false" : "true");
+      dropdowns.forEach((dropdown) => {
+        dropdown.classList.remove("is-open");
+        const trigger = dropdown.querySelector(":scope > a");
+        if (trigger) trigger.setAttribute("aria-expanded", "false");
+      });
+    }
+
+    function toggleMenu() {
+      const shouldOpen = !body.classList.contains("menu-open");
+      setMenuState(shouldOpen);
+      if (shouldOpen) {
+        requestAnimationFrame(() => {
+          const firstLink = nav.querySelector("a[href]");
+          if (firstLink) firstLink.focus();
+        });
+      }
+    }
+
+    function closeMenu(restoreFocus = false) {
+      setMenuState(false);
+      if (restoreFocus) menuToggle.focus();
+    }
+
+    menuToggle.addEventListener("click", toggleMenu);
+    mobileOverlay.addEventListener("click", () => closeMenu(true));
+
+    const serviceTriggers = [...dropdowns]
+      .map((dropdown) => dropdown.querySelector(":scope > a"))
+      .filter(Boolean);
+    dropdowns.forEach((dropdown) => {
+      const trigger = dropdown.querySelector(":scope > a");
+      dropdown.addEventListener("mouseenter", () => {
+        if (window.innerWidth > 980 && trigger)
+          trigger.setAttribute("aria-expanded", "true");
+      });
+      dropdown.addEventListener("mouseleave", () => {
+        if (window.innerWidth > 980 && trigger)
+          trigger.setAttribute("aria-expanded", "false");
+      });
+      dropdown.addEventListener("focusin", () => {
+        if (window.innerWidth > 980 && trigger)
+          trigger.setAttribute("aria-expanded", "true");
+      });
+      dropdown.addEventListener("focusout", (event) => {
+        if (
+          window.innerWidth > 980 &&
+          !dropdown.contains(event.relatedTarget) &&
+          trigger
+        ) {
+          trigger.setAttribute("aria-expanded", "false");
+        }
+      });
+    });
+
+    // Close menu when clicking destination navigation links (exclude dropdown trigger in mobile drawer)
+    document.querySelectorAll(".nav a").forEach((link) => {
+      link.addEventListener("click", (e) => {
+        const dropdownParent = link.closest(".dropdown");
+        const isDropdownTrigger =
+          dropdownParent && link === dropdownParent.querySelector(":scope > a");
+
+        if (window.innerWidth <= 980 && isDropdownTrigger) {
+          e.preventDefault();
+          const isExpanded = dropdownParent.classList.toggle("is-open");
+          link.setAttribute("aria-expanded", isExpanded ? "true" : "false");
+          return;
+        }
+
+        if (window.innerWidth <= 980) {
+          const destination = new URL(link.href, window.location.href);
+          const isSamePageAnchor =
+            destination.origin === window.location.origin &&
+            destination.pathname === window.location.pathname &&
+            destination.search === window.location.search &&
+            destination.hash;
+          closeMenu(!isSamePageAnchor);
+
+          if (isSamePageAnchor) {
+            const target = document.getElementById(
+              decodeURIComponent(destination.hash.slice(1)),
+            );
+            if (target) {
+              if (!target.hasAttribute("tabindex"))
+                target.setAttribute("tabindex", "-1");
+              requestAnimationFrame(() =>
+                target.focus({ preventScroll: true }),
+              );
+            }
+          }
+        }
+      });
+    });
+
+    // Keep keyboard focus within the open mobile drawer and close it with Escape.
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && body.classList.contains("menu-open")) {
+        closeMenu(true);
+        return;
+      }
+
+      if (e.key === "Tab" && body.classList.contains("menu-open")) {
+        const focusableElements = [
+          ...nav.querySelectorAll(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+          menuToggle,
+        ].filter(
+          (element) =>
+            element.getClientRects().length > 0 &&
+            element.getAttribute("aria-hidden") !== "true",
+        );
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (
+          firstElement &&
+          lastElement &&
+          e.shiftKey &&
+          document.activeElement === firstElement
+        ) {
+          e.preventDefault();
+          lastElement.focus();
+        } else if (
+          firstElement &&
+          lastElement &&
+          !e.shiftKey &&
+          document.activeElement === lastElement
+        ) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 980 && body.classList.contains("menu-open"))
+        closeMenu();
+    });
+
+    // Keep the service trigger's expanded state aligned when the desktop menu opens by focus.
+    serviceTriggers.forEach((trigger) => {
+      trigger.addEventListener("keydown", (event) => {
+        if (
+          window.innerWidth > 980 &&
+          (event.key === "ArrowDown" ||
+            event.key === "Enter" ||
+            event.key === " ")
+        ) {
+          const submenu = document.getElementById(
+            trigger.getAttribute("aria-controls"),
+          );
+          const firstLink = submenu && submenu.querySelector("a[href]");
+          if (firstLink && event.key !== "Enter") {
+            event.preventDefault();
+            trigger.setAttribute("aria-expanded", "true");
+            firstLink.focus();
+          }
+        }
+      });
+    });
+
+    setMenuState(false);
+  }
+
+  // 2. Scroll to Top Floating Button
+  const scrollTopBtn = document.querySelector(".scroll-to-top");
+
+  if (scrollTopBtn) {
+    function updateScrollTopVisibility() {
+      if (window.scrollY > 300) {
+        scrollTopBtn.classList.add("is-visible");
+      } else {
+        scrollTopBtn.classList.remove("is-visible");
+      }
+    }
+
+    window.addEventListener("scroll", updateScrollTopVisibility, {
+      passive: true,
+    });
+    updateScrollTopVisibility();
+
+    scrollTopBtn.addEventListener("click", () => {
+      window.scrollTo({
+        top: 0,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+      });
+    });
+  }
+
+  // 3. Formspree AJAX Contact Form Handling
+  const form = document.querySelector("#contact form");
+  if (form) {
+    let isCooldown = false;
+    let cooldownTimer = null;
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      if (isCooldown) {
+        return;
+      }
+
+      const submitButton = form.querySelector('button[type="submit"]');
+      const originalButtonText = submitButton
+        ? submitButton.textContent.trim()
+        : "Contact Us";
+
+      if (submitButton) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Sending...";
+      }
+
+      // Remove existing status messages
+      const existingMessage = form.querySelector(".form-message");
+      if (existingMessage) {
+        existingMessage.remove();
+      }
+
+      const formData = new FormData(form);
+      try {
+        const response = await fetch(form.action, {
+          method: "POST",
+          body: formData,
+          headers: {
+            Accept: "application/json",
+          },
+        });
+
+        if (response.ok) {
+          form.reset();
+          showFormMessage(
+            form,
+            "success",
+            "Your inquiry has been received. Our team will contact you soon.",
+          );
+          startCooldown(10);
+        } else {
+          const data = await response.json().catch(() => null);
+          if (data && data.errors) {
+            showFormMessage(
+              form,
+              "error",
+              "Please check the following: " +
+                data.errors.map((err) => err.message).join(", "),
+            );
+          } else {
+            showFormMessage(
+              form,
+              "error",
+              "Submission failed due to a server error. Please try again shortly.",
+            );
+          }
+          resetButton();
+        }
+      } catch (error) {
+        showFormMessage(
+          form,
+          "error",
+          "Network error. Check your internet connection and try again.",
+        );
+        resetButton();
+      }
+
+      function startCooldown(seconds) {
+        isCooldown = true;
+        let remaining = seconds;
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = `Please wait (${remaining}s)`;
+          submitButton.setAttribute(
+            "aria-label",
+            `Please wait ${remaining} seconds`,
+          );
+
+          if (cooldownTimer) clearInterval(cooldownTimer);
+          cooldownTimer = setInterval(() => {
+            remaining -= 1;
+            if (remaining > 0) {
+              submitButton.textContent = `Please wait (${remaining}s)`;
+              submitButton.setAttribute(
+                "aria-label",
+                `Please wait ${remaining} seconds`,
+              );
+            } else {
+              clearInterval(cooldownTimer);
+              cooldownTimer = null;
+              resetButton();
+            }
+          }, 1000);
+        }
+      }
+
+      function resetButton() {
+        isCooldown = false;
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.textContent = originalButtonText;
+          submitButton.removeAttribute("aria-label");
+        }
+      }
+    });
+  }
+
+  function showFormMessage(targetForm, type, messageText) {
+    const messageDiv = document.createElement("div");
+    messageDiv.className = `form-message ${type}`;
+    messageDiv.textContent = messageText;
+    messageDiv.setAttribute("role", type === "error" ? "alert" : "status");
+    messageDiv.setAttribute(
+      "aria-live",
+      type === "error" ? "assertive" : "polite",
+    );
+    messageDiv.setAttribute("aria-atomic", "true");
+
+    const submitButton = targetForm.querySelector('button[type="submit"]');
+    if (submitButton) {
+      targetForm.insertBefore(messageDiv, submitButton);
+    } else {
+      targetForm.appendChild(messageDiv);
+    }
+
+    messageDiv.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "nearest",
+    });
+  }
+
+  // 4. Auto-select Service in Contact Form based on URL parameter or link context
+  const serviceSelect = document.querySelector("#service");
+  if (serviceSelect) {
+    const serviceMap = {
+      printer: "Printer Rental",
+      copier: "Copier Rental",
+      supplies: "Ink & Toner Supplies",
+      maintenance: "Maintenance & Support",
+      remote: "Remote Support",
+      support: "Remote Support",
+    };
+
+    function selectServiceOption(serviceKey) {
+      if (!serviceKey) return;
+      const targetText = serviceMap[serviceKey.toLowerCase()] || serviceKey;
+      for (let i = 0; i < serviceSelect.options.length; i++) {
+        const opt = serviceSelect.options[i];
+        if (opt.text.includes(targetText) || opt.value.includes(targetText)) {
+          serviceSelect.selectedIndex = i;
+          serviceSelect.dispatchEvent(new Event("change"));
+          // Visual focus and highlight feedback
+          serviceSelect.style.borderColor = "var(--primary)";
+          serviceSelect.style.boxShadow = "0 0 0 3px rgba(22, 93, 255, 0.2)";
+          setTimeout(() => {
+            serviceSelect.style.borderColor = "";
+            serviceSelect.style.boxShadow = "";
+          }, 1800);
+          break;
+        }
+      }
+    }
+
+    // Check URL query parameters or hash on initial load
+    const urlParams = new URLSearchParams(window.location.search);
+    let serviceParam = urlParams.get("service");
+    if (!serviceParam && window.location.hash.includes("service=")) {
+      const hashQuery = window.location.hash.split("?")[1];
+      if (hashQuery) {
+        const hashParams = new URLSearchParams(hashQuery);
+        serviceParam = hashParams.get("service");
+      }
+    }
+
+    if (serviceParam) {
+      selectServiceOption(serviceParam);
+    }
+
+    // In-page CTA buttons with service intent
+    document
+      .querySelectorAll(
+        'a[href*="service="], a[data-service], #support a[href*="#contact"]',
+      )
+      .forEach((cta) => {
+        cta.addEventListener("click", () => {
+          const dataService = cta.getAttribute("data-service");
+          const href = cta.getAttribute("href") || "";
+          if (dataService) {
+            selectServiceOption(dataService);
+          } else if (href.includes("service=")) {
+            const match = href.match(/service=([a-zA-Z0-9_\-]+)/);
+            if (match && match[1]) {
+              selectServiceOption(match[1]);
+            }
+          } else if (cta.closest("#support")) {
+            selectServiceOption("maintenance");
+          }
+        });
+      });
+  }
+
+  // 5. Dark Mode Theme Toggle
+  const themeToggles = document.querySelectorAll(".theme-toggle");
+
+  function getPreferredTheme() {
+    return localStorage.getItem("ECOPRINTEC-theme") || "light";
+  }
+
+  function applyTheme(theme, save = true) {
+    document.documentElement.setAttribute("data-theme", theme);
+    if (save) {
+      localStorage.setItem("ECOPRINTEC-theme", theme);
+    }
+    themeToggles.forEach((toggle) => {
+      const isDark = theme === "dark";
+      toggle.setAttribute(
+        "aria-label",
+        isDark ? "Switch to light mode" : "Switch to dark mode",
+      );
+      toggle.setAttribute(
+        "title",
+        isDark ? "Switch to light mode" : "Switch to dark mode",
+      );
+      toggle.setAttribute("aria-pressed", isDark ? "true" : "false");
+    });
+  }
+
+  // Initialize theme (default to light mode unless explicitly saved)
+  applyTheme(getPreferredTheme(), !!localStorage.getItem("ECOPRINTEC-theme"));
+
+  themeToggles.forEach((toggle) => {
+    toggle.addEventListener("click", () => {
+      const currentTheme =
+        document.documentElement.getAttribute("data-theme") || "light";
+      const newTheme = currentTheme === "dark" ? "light" : "dark";
+      applyTheme(newTheme, true);
+    });
+  });
+});
